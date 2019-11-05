@@ -1,0 +1,8 @@
+clearvars
+c = [2,15,13,4; 10,4,14,15; 9,14,16,13; 7,8,11,9];
+%c = [12 7; 1 1];
+%c = reshape(c, 4, 4)';
+%row = [1,0,0,1,0];
+[Z, cost] = user_pairing_hungarian(c);
+Z
+cost
