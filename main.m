@@ -2,10 +2,10 @@
 clearvars
 clc
 
-[MCS_value, text, rawdata] = xlsread('CQI_index.xlsx');
+[MCS_value, texting, rawdata] = xlsread('CQI_index.xlsx');
 
 sim_times = 20;
-min_pilot = 3;
+min_pilot = 3;  % ??
 num_of_time_slot = 20;
 num_of_sc = 20;
 RB_assigned = zeros(num_of_time_slot, num_of_sc);
@@ -20,16 +20,31 @@ traffic_demand_j = randi(avg_bit, 1, U_j);
 SINR_ij = randi(30, U_i, U_j) - 7;
 SINR_ji = randi(30, U_j, U_i) - 7;
 SINR_agg = SINR_ij + SINR_ji';
-SINR_threshold = 3;
-% build the adjacent matrix
-adj = zeros(U_i, U_j);
+
+H_i = randi(30, U_i, 1) - 7;
+H_j = randi(30, U_j, 1) - 7;
+itf_i = randi(30, U_i, 1) - 7;
+itf_j = randi(30, U_j, 1) - 7;
+P_i = randi(10, U_i, 1);
+P_i = P_i / sum(P_i) * U_i;
+P_j = randi(10, U_j, 1);
+P_j = P_j / sum(P_j) * U_j;
+SNR_i = H_i .* P_i;
+SNR_j = H_j .* P_j;
+noise_i = 1 / mean(SNR_i);
+noise_j = 1 / mean(SNR_j);
+
+SINR_ij = zeros(U_i, U_j);
+SINR_ji = zeros(U_j, U_i);
 for i = 1 : U_i
     for j = 1 : U_j
-        if SINR_ij(i, j) >= SINR_threshold && SINR_ji(j, i) >= SINR_threshold
-            adj(i, j) = 1;
-        end
+        SINR_ij(i, j) = SNR_i(i) / (noise_i + itf_j(j) * P_j(j));
+        SINR_ji(j, i) = SNR_j(j) / (noise_j + itf_i(i) * P_i(i));
     end
 end
+SINR_agg = SINR_ij + SINR_ji';
+
+
 % build the weight matrix
 max_val = max(SINR_agg, [], 'all');
 weight = zeros(max(U_i, U_j));
@@ -41,7 +56,49 @@ end
 
 
 %% bipartite
-[p_x, p_y, pair] = user_pairing_bipartite(adj);
+SINR_threshold = 5; %16QAM threshold
+% build the adjacent matrix
+adj = zeros(U_i, U_j);
+for i = 1 : U_i
+    for j = 1 : U_j
+        if SINR_ij(i, j) >= SINR_threshold && SINR_ji(j, i) >= SINR_threshold
+            adj(i, j) = 1;
+        end
+    end
+end
+[p_x_16qam, p_y_16qam, pair_16qam] = user_pairing_bipartite(adj);
+
+SINR_threshold = 10.85; %64QAM threshold
+% build the adjacent matrix
+adj = zeros(U_i, U_j);
+for i = 1 : U_i
+    for j = 1 : U_j
+        if SINR_ij(i, j) >= SINR_threshold && SINR_ji(j, i) >= SINR_threshold
+            adj(i, j) = 1;
+        end
+    end
+end
+[p_x_64qam, p_y_64qam, pair_64qam] = user_pairing_bipartite(adj);
+
+sumrate_16qam = 0;
+sumrate_64qam = 0;
+for n = 1 : U_i
+   if p_x_16qam(n) ~= 0
+       sumrate_16qam = sumrate_16qam + SINR_agg(n, p_x_16qam(n));
+   end
+   if p_x_64qam(n) ~= 0
+       sumrate_64qam = sumrate_64qam + SINR_agg(n, p_x_64qam(n));
+   end
+end
+if sumrate_16qam > sumrate_64qam
+    p_x = p_x_16qam;
+    p_y = p_y_16qam;
+    pair = pair_16qam;
+else 
+    p_x = p_x_64qam;
+    p_y = p_y_64qam;
+    pair = pair_64qam;
+end
 % plot 
 topo_i = zeros(U_i, 2) + 1;
 for n = 1 : U_i
